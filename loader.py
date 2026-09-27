@@ -6,6 +6,7 @@ from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
 from tenacity import retry, stop_after_attempt, wait_exponential
+from sqlalchemy import text, inspect
 from config import minio_access_key, minio_secret_key
 
 
@@ -68,4 +69,98 @@ def load_to_minio(bucket_name: str, data: dict) -> str | None:
         return None
 
 
+def check_db_and_table(engine, table_name: str) -> bool:
+    """Проверяет доступность БД и наличие таблицы. Engine передаётся снаружи."""
+    try:
+        # Проверка подключения
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+
+        # Проверка наличия таблицы
+        if inspect(engine).has_table(table_name):
+            logger.info(f"Таблица '{table_name}' существует")
+            return True
+
+        logger.error(f"Таблицы '{table_name}' нет в БД")
+        return False
+
+    except Exception as e:
+        logger.error(f"БД недоступна: {e}")
+        return False
+
+
+def load_to_postgres(engine, table_name: str, data: dict) -> None:
+    """Записывает землетрясения из ответа USGS API в PostgreSQL."""
+
+    try:
+        features = data.get("features", [])
+
+        if not features:
+            logger.info("В ответе API нет новых землетрясений")
+            return
+
+        with engine.begin() as conn:
+
+            for feature in features:
+                properties = feature.get("properties", {})
+                geometry = feature.get("geometry", {})
+
+                earthquake_id = feature.get("id")
+
+                coordinates = geometry.get("coordinates", [])
+
+                if len(coordinates) < 3:
+                    logger.warning(
+                        f"Некорректные координаты для earthquake_id={earthquake_id}"
+                    )
+                    continue
+
+                longitude = coordinates[0]
+                latitude = coordinates[1]
+                depth = coordinates[2]
+
+                query = text(f"""
+                    INSERT INTO {table_name} (
+                        id,
+                        time,
+                        latitude,
+                        longitude,
+                        depth,
+                        magnitude,
+                        place
+                    )
+                    VALUES (
+                        :id,
+                        :time,
+                        :latitude,
+                        :longitude,
+                        :depth,
+                        :magnitude,
+                        :place
+                    )
+                    ON CONFLICT (id) DO NOTHING
+                """)
+
+                conn.execute(
+                    query,
+                    {
+                        "id": earthquake_id,
+                        "time": datetime.fromtimestamp(
+                            properties["time"] / 1000
+                        ),
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "depth": depth,
+                        "magnitude": properties.get("mag"),
+                        "place": properties.get("place"),
+                    }
+                )
+
+        logger.info(
+            f"Обработано землетрясений из API: {len(features)}"
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных в PostgreSQL: {e}")
+        raise
 
