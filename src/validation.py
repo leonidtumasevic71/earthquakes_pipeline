@@ -70,19 +70,27 @@ def response_structure_check(data: dict) -> bool:
 
 
 def remove_nulls(data: dict) -> list:
-    """фильтр null значений"""
+    """Удаляет только записи с критически отсутствующими полями."""
+
     cleaned_features = []
 
-    for feature in data["features"]:
-        has_null = False
+    for feature in data.get("features", []):
 
-        for value in feature["properties"].values():
-            if value is None:
-                has_null = True
-                break
+        properties = feature.get("properties", {})
+        geometry = feature.get("geometry", {})
+        coordinates = geometry.get("coordinates", [])
 
-        if not has_null:
-            cleaned_features.append(feature)
+        # обязательные поля
+        if feature.get("id") is None:
+            continue
+
+        if properties.get("time") is None:
+            continue
+
+        if len(coordinates) < 3:
+            continue
+
+        cleaned_features.append(feature)
 
     return cleaned_features
 
