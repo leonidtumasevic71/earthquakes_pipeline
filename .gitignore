@@ -6,3 +6,5 @@ logs/
 *.log
 .idea/
 .vscode/
+
+docker-compose.yaml

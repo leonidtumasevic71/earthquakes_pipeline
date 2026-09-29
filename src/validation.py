@@ -8,7 +8,7 @@ from config import minio_access_key, minio_secret_key
 logger = log.getLogger(__name__)
 
 client = Minio(
-    "localhost:9000",
+    "minio:9000",
     access_key=minio_access_key,
     secret_key=minio_secret_key,
     secure=False

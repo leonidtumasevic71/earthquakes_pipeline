@@ -13,7 +13,7 @@ from config import minio_access_key, minio_secret_key
 logger = log.getLogger(__name__)
 
 client = Minio(
-    "localhost:9000",
+    "minio:9000",
     access_key=minio_access_key,
     secret_key=minio_secret_key,
     secure=False
@@ -89,24 +89,26 @@ def check_db_and_table(engine, table_name: str) -> bool:
         return False
 
 
-def load_to_postgres(engine, table_name: str, data: dict) -> None:
-    """Записывает землетрясения из ответа USGS API в PostgreSQL."""
+def load_to_postgres(engine, table_name: str, data) -> None:
+    """Записывает землетрясения в PostgreSQL. data — dict с ключом features или list."""
+    if isinstance(data, dict):
+        features = data.get("features", [])
+    elif isinstance(data, list):
+        features = data
+    else:
+        raise TypeError(f"Ожидался dict или list, получено: {type(data)}")
+
+    if not features:
+        logger.info("Нет данных для записи в PostgreSQL")
+        return
 
     try:
-        features = data.get("features", [])
-
-        if not features:
-            logger.info("В ответе API нет новых землетрясений")
-            return
-
         with engine.begin() as conn:
-
             for feature in features:
                 properties = feature.get("properties", {})
                 geometry = feature.get("geometry", {})
 
                 earthquake_id = feature.get("id")
-
                 coordinates = geometry.get("coordinates", [])
 
                 if len(coordinates) < 3:
@@ -115,28 +117,21 @@ def load_to_postgres(engine, table_name: str, data: dict) -> None:
                     )
                     continue
 
+                time_ms = properties.get("time")
+                if time_ms is None:
+                    logger.warning(f"Нет поля 'time' для earthquake_id={earthquake_id}")
+                    continue
+
                 longitude = coordinates[0]
                 latitude = coordinates[1]
                 depth = coordinates[2]
 
                 query = text(f"""
                     INSERT INTO {table_name} (
-                        id,
-                        time,
-                        latitude,
-                        longitude,
-                        depth,
-                        magnitude,
-                        place
+                        id, time, latitude, longitude, depth, magnitude, place
                     )
                     VALUES (
-                        :id,
-                        :time,
-                        :latitude,
-                        :longitude,
-                        :depth,
-                        :magnitude,
-                        :place
+                        :id, :time, :latitude, :longitude, :depth, :magnitude, :place
                     )
                     ON CONFLICT (id) DO NOTHING
                 """)
@@ -145,22 +140,17 @@ def load_to_postgres(engine, table_name: str, data: dict) -> None:
                     query,
                     {
                         "id": earthquake_id,
-                        "time": datetime.fromtimestamp(
-                            properties["time"] / 1000
-                        ),
+                        "time": datetime.fromtimestamp(time_ms / 1000),
                         "latitude": latitude,
                         "longitude": longitude,
                         "depth": depth,
                         "magnitude": properties.get("mag"),
                         "place": properties.get("place"),
-                    }
+                    },
                 )
 
-        logger.info(
-            f"Обработано землетрясений из API: {len(features)}"
-        )
+        logger.info(f"Обработано землетрясений: {len(features)}")
 
     except Exception as e:
         logger.error(f"Ошибка при загрузке данных в PostgreSQL: {e}")
         raise
-

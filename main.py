@@ -1,8 +1,8 @@
 import logging as log
 from sqlalchemy import create_engine
 from config import api_url, db_conn_string
-from loader import bucket_check, api_check, load_to_minio, check_db_and_table, load_to_postgres
-from validation import data_extraction, response_structure_check, remove_duplicates, remove_nulls, response_values_check
+from src.loader import bucket_check, api_check, load_to_minio, check_db_and_table, load_to_postgres
+from src.validation import data_extraction, response_structure_check, remove_duplicates, remove_nulls, response_values_check
 
 
 log.basicConfig(
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     clean_data = remove_duplicates(processed_data)
 
 
-    load_to_postgres(engine, "earthquakes", raw_data)
+    load_to_postgres(engine, "earthquakes", clean_data)
 
 
 # TODO описать тесты, докер файл, реад ми, визуализацию и тд.
