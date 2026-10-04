@@ -1,16 +1,16 @@
 import json
 import logging as log
 from minio import Minio
-from config import minio_access_key, minio_secret_key
+from config import rustfs_access_key, rustfs_secret_key
 
 
 
 logger = log.getLogger(__name__)
 
 client = Minio(
-    "minio:9000",
-    access_key=minio_access_key,
-    secret_key=minio_secret_key,
+    "rustfs:9000",
+    access_key=rustfs_access_key,
+    secret_key=rustfs_secret_key,
     secure=False
 )
 

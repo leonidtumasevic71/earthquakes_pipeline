@@ -4,11 +4,18 @@ x-airflow-common:
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET}
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
 
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
       postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME}
 
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+
+    RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+    RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+    DB_CONN_STRING: ${DB_CONN_STRING}
+    API_URL: ${API_URL}
 
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
@@ -35,7 +42,7 @@ x-airflow-common:
 services:
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.3
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -157,21 +164,24 @@ services:
     command: triggerer
     restart: always
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  rustfs:
+    image: rustfs/rustfs:latest
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - rustfs_data:/data
     restart: unless-stopped
 
 volumes:
   postgres-db-volume:
   pipeline-db-volume:      # <--- новый volume для данных пайплайна
-  minio_data:
+  rustfs_data:
   grafana_data:

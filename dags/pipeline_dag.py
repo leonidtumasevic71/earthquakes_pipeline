@@ -7,7 +7,7 @@ from config import api_url, db_conn_string
 from src.loader import (
     bucket_check as _bucket_check,
     api_check,
-    load_to_minio,
+    load_to_rustfs,
     check_db_and_table as _check_db_and_table,
     load_to_postgres,
 )
@@ -55,8 +55,8 @@ with DAG(
         return api_check(api_url)
 
     @task
-    def upload_raw_to_minio_task(raw_data):
-        return load_to_minio("earthquakes", raw_data)
+    def upload_raw_to_rustfs_task(raw_data):
+        return load_to_rustfs("earthquakes", raw_data)
 
     @task
     def extract_task():
@@ -94,7 +94,7 @@ with DAG(
     bucket = check_bucket_task()
     db = check_db_task()
     raw = fetch_api_task()
-    minio = upload_raw_to_minio_task(raw)
+    rustfs = upload_raw_to_rustfs_task(raw)
     extracted = extract_task()
 
     struct = check_structure_task(extracted)
@@ -105,6 +105,6 @@ with DAG(
     loaded = load_to_postgres_task(clean)
 
     # Порядок выполнения
-    bucket >> db >> raw >> minio >> extracted
+    bucket >> db >> raw >> rustfs >> extracted
     extracted >> struct >> values
     values >> no_nulls >> clean >> loaded

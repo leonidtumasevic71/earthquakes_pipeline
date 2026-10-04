@@ -7,20 +7,20 @@ from minio import Minio
 from minio.error import S3Error
 from tenacity import retry, stop_after_attempt, wait_exponential
 from sqlalchemy import text, inspect
-from config import minio_access_key, minio_secret_key
+from config import rustfs_access_key, rustfs_secret_key
 
 
 logger = log.getLogger(__name__)
 
 client = Minio(
-    "minio:9000",
-    access_key=minio_access_key,
-    secret_key=minio_secret_key,
+    "rustfs:9000",
+    access_key=rustfs_access_key,
+    secret_key=rustfs_secret_key,
     secure=False
 )
 
 def bucket_check(bucket_name: str) -> None:
-    """создание minio bucket если bucket еще не был созан"""
+    """создание rustfs bucket если bucket еще не был созан"""
     if not client.bucket_exists(bucket_name):
         client.make_bucket(bucket_name)
         log.info(f"бакет {bucket_name} был успешно создан")
@@ -46,7 +46,7 @@ def api_check(api_url: str) -> dict:
     return response.json()
 
 
-def load_to_minio(bucket_name: str, data: dict) -> str | None:
+def load_to_rustfs(bucket_name: str, data: dict) -> str | None:
     now = datetime.now()
     object_name = f"{now:%Y/%m/%d}/data_{now:%H%M%S_%f}.json"
 
