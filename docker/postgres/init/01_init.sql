@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS public.earthquakes (
+    id TEXT PRIMARY KEY,
+    time TIMESTAMP,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    depth DOUBLE PRECISION,
+    magnitude DOUBLE PRECISION,
+    place TEXT
+);
+
+GRANT CONNECT ON DATABASE earthquakes TO grafana;
+
+GRANT USAGE ON SCHEMA public TO grafana;
+
+GRANT SELECT
+ON ALL TABLES IN SCHEMA public
+TO grafana;
+
+ALTER DEFAULT PRIVILEGES
+FOR ROLE pipeline
+IN SCHEMA public
+GRANT SELECT ON TABLES TO grafana;
