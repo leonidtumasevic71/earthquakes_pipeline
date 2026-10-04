@@ -1,4 +1,3 @@
-import logging as log
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 
@@ -20,12 +19,6 @@ from src.validation import (
     response_values_check,
 )
 
-log.basicConfig(
-    filename="app.log",
-    level=log.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-
 default_args = {
     "owner": "airflow",
     "depends_on_past": False,
@@ -39,7 +32,7 @@ with DAG(
     dag_id="pipeline_dag",
     default_args=default_args,
     description="Earthquakes data pipeline",
-    schedule="@hourly",
+    schedule=timedelta(minutes=5),
     start_date=datetime(2026, 9, 28),
     catchup=False,
     tags=["earthquakes"],
@@ -50,9 +43,12 @@ with DAG(
         return _bucket_check("earthquakes")
 
     @task
-    def check_db_task():
+    def check_db_task(): # стоит разбить функцию из этой таски на 2 отдельных(таблица / БД)
         engine = create_engine(db_conn_string)
-        return _check_db_and_table(engine, "earthquakes")
+        result = _check_db_and_table(engine, "earthquakes")
+        if not result:
+            raise RuntimeError("ошибка проверки БД или таблицы")
+        return
 
     @task
     def fetch_api_task():
@@ -68,12 +64,17 @@ with DAG(
 
     @task
     def check_structure_task(data):
-        response_structure_check(data)
+        valid_response = response_structure_check(data)
+
+        if not valid_response:
+            raise ValueError("валидация структуры не пройдена!")
         return data
 
     @task
     def check_values_task(data):
-        response_values_check(data)
+        valid_response = response_values_check(data)
+        if not valid_response:
+            raise ValueError("проверка диапазонов значений не пройдена!")
         return data
 
     @task
@@ -96,14 +97,14 @@ with DAG(
     minio = upload_raw_to_minio_task(raw)
     extracted = extract_task()
 
-    struct_ok = check_structure_task(extracted)
-    values_ok = check_values_task(extracted)
+    struct = check_structure_task(extracted)
+    values = check_values_task(struct)
 
-    no_nulls = clean_nulls_task(values_ok)          # чистим после валидации
+    no_nulls = clean_nulls_task(values)          # чистим после валидации
     clean = clean_duplicates_task(no_nulls)
     loaded = load_to_postgres_task(clean)
 
     # Порядок выполнения
     bucket >> db >> raw >> minio >> extracted
-    extracted >> [struct_ok, values_ok]
-    values_ok >> no_nulls >> clean >> loaded
+    extracted >> struct >> values
+    values >> no_nulls >> clean >> loaded
