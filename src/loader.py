@@ -1,7 +1,7 @@
 import json
 import logging as log
 import requests as rq
-from datetime import datetime
+from datetime import datetime, timezone
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
@@ -171,7 +171,10 @@ def load_to_postgres(engine, table_name: str, data) -> None:
                     query,
                     {
                         "id": earthquake_id,
-                        "time": datetime.fromtimestamp(time_ms / 1000),
+                        "time": datetime.fromtimestamp(
+                            time_ms / 1000,
+                            tz=timezone.utc
+                        ),
                         "latitude": latitude,
                         "longitude": longitude,
                         "depth": depth,

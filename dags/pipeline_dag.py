@@ -1,3 +1,5 @@
+import pendulum
+
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 
@@ -33,7 +35,12 @@ with DAG(
     default_args=default_args,
     description="Earthquakes data pipeline",
     schedule=timedelta(minutes=30),
-    start_date=datetime(2026, 9, 28),
+        start_date=pendulum.datetime(
+            2026,
+            9,
+            28,
+            tz="UTC"
+        ),
     catchup=False,
     tags=["earthquakes"],
 ) as dag:
