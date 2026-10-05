@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 
-from airflow.sdk import DAG, task
+from airflow.sdk import DAG, task, get_current_context
 
 from config import api_url, db_conn_string
 from src.loader import (
@@ -32,7 +32,7 @@ with DAG(
     dag_id="pipeline_dag",
     default_args=default_args,
     description="Earthquakes data pipeline",
-    schedule=timedelta(minutes=5),
+    schedule=timedelta(minutes=30),
     start_date=datetime(2026, 9, 28),
     catchup=False,
     tags=["earthquakes"],
@@ -56,11 +56,23 @@ with DAG(
 
     @task
     def upload_raw_to_rustfs_task(raw_data):
-        return load_to_rustfs("earthquakes", raw_data)
+
+        # Получаем ID текущего запуска DAG
+        context = get_current_context()
+        run_id = context["run_id"]
+
+        return load_to_rustfs(
+            "earthquakes",
+            raw_data,
+            run_id
+        )
 
     @task
-    def extract_task():
-        return data_extraction("earthquakes")
+    def extract_task(object_name):
+        return data_extraction(
+            "earthquakes",
+            object_name
+        )
 
     @task
     def check_structure_task(data):
@@ -95,7 +107,7 @@ with DAG(
     db = check_db_task()
     raw = fetch_api_task()
     rustfs = upload_raw_to_rustfs_task(raw)
-    extracted = extract_task()
+    extracted = extract_task(rustfs)
 
     struct = check_structure_task(extracted)
     values = check_values_task(struct)
