@@ -4,7 +4,6 @@ from minio import Minio
 from config import rustfs_access_key, rustfs_secret_key
 
 
-
 logger = log.getLogger(__name__)
 
 client = Minio(
@@ -14,32 +13,40 @@ client = Minio(
     secure=False
 )
 
-def data_extraction(bucket_name: str) -> dict:
+
+def data_extraction(
+    bucket_name: str,
+    object_name: str
+) -> dict:
     """чтение данных из бакета"""
-    objects = client.list_objects(
-        bucket_name,
-        recursive=True
-    )
 
-    for obj in objects:
-
-        if not obj.object_name.endswith(".json"):
-            continue
+    try:
+        response = client.get_object(
+            bucket_name,
+            object_name
+        )
 
         try:
-            response = client.get_object(
-                bucket_name,
-                obj.object_name
-            )
             data = json.loads(
                 response.read().decode("utf-8")
             )
 
-        except Exception as e:
-            log.error(
-                f"ошибка чтения {obj.object_name}: {e}"
-            )
-    return data
+        finally:
+            response.close()
+            response.release_conn()
+
+        logger.info(
+            f"файл {object_name} успешно прочитан "
+            f"из бакета {bucket_name}"
+        )
+
+        return data
+
+    except Exception as e:
+        log.error(
+            f"ошибка чтения {object_name}: {e}"
+        )
+        raise
 
 
 def response_structure_check(data: dict) -> bool:
@@ -151,6 +158,3 @@ def remove_duplicates(features: list) -> list:
             seen_ids.add(feature_id)
 
     return unique_features
-
-
-
