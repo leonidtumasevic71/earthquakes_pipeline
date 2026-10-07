@@ -78,29 +78,59 @@ def response_structure_check(data: dict) -> bool:
 
 def response_values_check(data: dict) -> bool:
     """проверяет диапазоны значений"""
+
     for feature in data["features"]:
+        feature_id = feature["id"]
         properties = feature["properties"]
         coordinates = feature["geometry"]["coordinates"]
 
         if properties["mag"] < -10 or properties["mag"] > 15:
+            log.error(
+                f"id={feature_id}: "
+                f"mag={properties['mag']} вне диапазона [-10, 15]"
+            )
             return False
 
         if properties["time"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"time={properties['time']} < 0"
+            )
             return False
 
         if properties["updated"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"updated={properties['updated']} < 0"
+            )
             return False
 
         if properties["nst"] is not None and properties["nst"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"nst={properties['nst']} < 0"
+            )
             return False
 
         if properties["rms"] is not None and properties["rms"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"rms={properties['rms']} < 0"
+            )
             return False
 
         if properties["gap"] is not None and properties["gap"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"gap={properties['gap']} < 0"
+            )
             return False
 
         if properties["dmin"] is not None and properties["dmin"] < 0:
+            log.error(
+                f"id={feature_id}: "
+                f"dmin={properties['dmin']} < 0"
+            )
             return False
 
         longitude = coordinates[0]
@@ -108,13 +138,30 @@ def response_values_check(data: dict) -> bool:
         depth = coordinates[2]
 
         if longitude < -180 or longitude > 180:
+            log.error(
+                f"id={feature_id}: "
+                f"longitude={longitude} вне диапазона [-180, 180]"
+            )
             return False
 
         if latitude < -90 or latitude > 90:
+            log.error(
+                f"id={feature_id}: "
+                f"latitude={latitude} вне диапазона [-90, 90]"
+            )
             return False
 
-        if depth < 0:
+        if depth < -10:
+            log.error(
+                f"id={feature_id}: "
+                f"depth={depth} < -10"
+            )
             return False
+
+    log.info(
+        f"Проверка диапазонов успешно пройдена. "
+        f"Проверено записей: {len(data['features'])}"
+    )
 
     return True
 
