@@ -50,18 +50,26 @@ def data_extraction(
 
 
 def response_structure_check(data: dict) -> bool:
-    """проверка структуры api ответа и типов данных """
+    """Проверка структуры API ответа и типов данных."""
+
     if not isinstance(data, dict):
         return False
 
+    # Корневой объект
     if data.get("type") != "FeatureCollection":
         return False
 
     if not isinstance(data.get("features"), list):
         return False
 
+    # Проверка каждого объекта
     for feature in data["features"]:
+
         if not isinstance(feature, dict):
+            return False
+
+        # Обязательные поля Feature
+        if not isinstance(feature.get("id"), str):
             return False
 
         if feature.get("type") != "Feature":
@@ -71,6 +79,46 @@ def response_structure_check(data: dict) -> bool:
             return False
 
         if not isinstance(feature.get("geometry"), dict):
+            return False
+
+        properties = feature["properties"]
+        geometry = feature["geometry"]
+
+        # Проверка properties
+        if not isinstance(properties.get("mag"), (int, float)):
+            return False
+
+        if not isinstance(properties.get("time"), (int, float)):
+            return False
+
+        if not isinstance(properties.get("updated"), (int, float)):
+            return False
+
+        if properties.get("nst") is not None and not isinstance(properties["nst"], (int, float)):
+            return False
+
+        if properties.get("rms") is not None and not isinstance(properties["rms"], (int, float)):
+            return False
+
+        if properties.get("gap") is not None and not isinstance(properties["gap"], (int, float)):
+            return False
+
+        if properties.get("dmin") is not None and not isinstance(properties["dmin"], (int, float)):
+            return False
+
+        # Проверка geometry
+        if geometry.get("type") != "Point":
+            return False
+
+        coordinates = geometry.get("coordinates")
+
+        if not isinstance(coordinates, list):
+            return False
+
+        if len(coordinates) != 3:
+            return False
+
+        if not all(isinstance(value, (int, float)) for value in coordinates):
             return False
 
     return True
