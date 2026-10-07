@@ -5,9 +5,14 @@ from datetime import datetime, timezone
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
-from tenacity import retry, stop_after_attempt, wait_exponential
 from sqlalchemy import text, inspect
 from config import rustfs_access_key, rustfs_secret_key
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception,
+)
 
 
 logger = log.getLogger(__name__)
@@ -30,22 +35,33 @@ def bucket_check(bucket_name: str) -> None:
 
 
 @retry(
+    retry=retry_if_exception(
+        lambda e: (
+            isinstance(e, (rq.exceptions.Timeout, rq.exceptions.ConnectionError))
+            or (
+                isinstance(e, rq.exceptions.HTTPError)
+                and e.response is not None
+                and 500 <= e.response.status_code < 600
+            )
+        )
+    ),
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=1, max=30),
 )
 def api_check(api_url: str) -> dict:
-    """проверка доступности api. Ретраит при 5ХХ и тайамаутах"""
+    """Проверка доступности API. Retry только для timeout, connection errors и HTTP 5xx."""
+
     response = rq.get(api_url, timeout=5)
+
     if response.ok:
-        log.info(f"api доступен, status_code:{response.status_code}")
+        log.info(f"API доступен, status_code: {response.status_code}")
         return response.json()
 
-    # при 4ХХ нет смысла ретраить
-    if 500 <= response.status_code < 600:
-        log.error(f"api НЕдоступен, status_code:{response.status_code}")
+    if 400 <= response.status_code < 500:
+        log.error(f"Клиентская ошибка: {response.status_code}")
         response.raise_for_status()
 
-    log.error(f"Клиентская ошибка: {response.status_code}")
+    log.error(f"Ошибка сервера API, status_code: {response.status_code}")
     response.raise_for_status()
 
 
