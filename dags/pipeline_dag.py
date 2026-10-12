@@ -50,7 +50,7 @@ with DAG(
         return _bucket_check("earthquakes")
 
     @task
-    def check_db_task(): # стоит разбить функцию из этой таски на 2 отдельных(таблица / БД)
+    def check_db_task(): # TODO стоит разбить функцию из этой таски на 2 отдельных(таблица / БД)
         engine = create_engine(db_conn_string)
         result = _check_db_and_table(engine, "earthquakes")
         if not result:
@@ -109,21 +109,9 @@ with DAG(
         engine = create_engine(db_conn_string)
         return load_to_postgres(engine, "earthquakes", clean_data)
 
-    # Связываем задачи в граф
-    bucket = check_bucket_task()
-    db = check_db_task()
-    raw = fetch_api_task()
-    rustfs = upload_raw_to_rustfs_task(raw)
-    extracted = extract_task(rustfs)
+#TODO схема дага будет полностью переработана тк через xcom передавался результат выполнения каждой таски
 
-    struct = check_structure_task(extracted)
-    values = check_values_task(struct)
-
-    no_nulls = clean_nulls_task(values)          # чистим после валидации
-    clean = clean_duplicates_task(no_nulls)
-    loaded = load_to_postgres_task(clean)
-
-    # Порядок выполнения
-    bucket >> db >> raw >> rustfs >> extracted
-    extracted >> struct >> values
-    values >> no_nulls >> clean >> loaded
+# storages_check(check_bucket, check_db) ->
+# get_api_response_and_load_to_rustfs(fetch_api, upload_raw_to_rustfs) ->
+# make_processed_data(extract, check_structure, check_values, clean_nulls, clean_duplicates, upload_raw_to_rustfs) ->
+# load_clean_data_to_postgre(extract, load_to_postgres)
