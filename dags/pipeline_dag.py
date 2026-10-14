@@ -1,16 +1,19 @@
 import pendulum
 
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from minio import S3Error
 from sqlalchemy import create_engine
 
 from airflow.sdk import DAG, task, get_current_context
 
 from config import api_url, db_conn_string
 from src.loader import (
-    bucket_check as _bucket_check,
+    bucket_check,
     api_check,
     load_to_rustfs,
-    check_db_and_table as _check_db_and_table,
+    db_access_check,
+    check_db_table,
     load_to_postgres,
 )
 from src.validation import (
@@ -44,18 +47,25 @@ with DAG(
     catchup=False,
     tags=["earthquakes"],
 ) as dag:
-
     @task
-    def check_bucket_task():
-        return _bucket_check("earthquakes")
+    def storages_check_task():
+        bucket_check("earthquakes")
 
-    @task
-    def check_db_task(): # TODO стоит разбить функцию из этой таски на 2 отдельных(таблица / БД)
         engine = create_engine(db_conn_string)
-        result = _check_db_and_table(engine, "earthquakes")
-        if not result:
-            raise RuntimeError("ошибка проверки БД или таблицы")
-        return
+
+        try:
+            if not db_access_check(engine):
+                raise ConnectionError(
+                    "Не удалось подключиться к PostgreSQL"
+                )
+
+            if not check_db_table(engine, "earthquakes"):
+                raise ValueError(
+                    "Таблица 'earthquakes' не существует"
+                )
+
+        finally:
+            engine.dispose()
 
     @task
     def fetch_api_task():
