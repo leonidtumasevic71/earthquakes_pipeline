@@ -113,24 +113,36 @@ def load_to_rustfs(
         )
         raise
 
+import logging
+from sqlalchemy import text, inspect
+from sqlalchemy.engine import Engine
 
-def check_db_and_table(engine, table_name: str) -> bool:
-    """Проверяет доступность БД и наличие таблицы. Engine передаётся снаружи."""
+logger = logging.getLogger(__name__)
+
+
+def db_access_check(engine: Engine) -> bool:
+    """Проверяет, что БД доступна."""
     try:
-        # Проверка подключения
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        logger.info("БД доступна")
+        return True
+    except Exception as e:
+        logger.error(f"БД недоступна: {e}")
+        return False
 
-        # Проверка наличия таблицы
+
+def check_db_table(engine: Engine, table_name: str) -> bool:
+    """Проверяет наличие таблицы в БД."""
+    try:
         if inspect(engine).has_table(table_name):
             logger.info(f"Таблица '{table_name}' существует")
             return True
 
         logger.error(f"Таблицы '{table_name}' нет в БД")
         return False
-
     except Exception as e:
-        logger.error(f"БД недоступна: {e}")
+        logger.error(f"Ошибка проверки таблицы '{table_name}': {e}")
         return False
 
 
