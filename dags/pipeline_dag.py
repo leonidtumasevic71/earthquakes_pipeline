@@ -1,12 +1,7 @@
 import pendulum
-
 from datetime import timedelta
-
-from minio import S3Error
 from sqlalchemy import create_engine
-
 from airflow.sdk import DAG, task, get_current_context
-
 from config import api_url, db_conn_string
 from src.loader import (
     bucket_check,
@@ -47,6 +42,8 @@ with DAG(
     catchup=False,
     tags=["earthquakes"],
 ) as dag:
+
+
     @task
     def storages_check_task():
         bucket_check("earthquakes")
@@ -67,61 +64,69 @@ with DAG(
         finally:
             engine.dispose()
 
-    @task
-    def fetch_api_task():
-        return api_check(api_url)
 
     @task
-    def upload_raw_to_rustfs_task(raw_data):
+    def get_api_response_and_load_to_rustfs_task():
+        response = api_check(api_url)
 
         # Получаем ID текущего запуска DAG
         context = get_current_context()
         run_id = context["run_id"]
 
-        return load_to_rustfs(
+        return load_to_rustfs("earthquakes", response, run_id)
+
+
+    @task
+    def make_processed_data_task(raw_object_name: str) -> str:
+        """Читает RAW, валидирует, очищает и сохраняет обработанные данные."""
+
+        data = data_extraction("earthquakes", raw_object_name)
+
+        if not response_structure_check(data):
+            raise ValueError("Валидация структуры не пройдена")
+
+        if not response_values_check(data):
+            raise ValueError("Проверка значений не пройдена")
+
+        cleaned_data = remove_nulls(data)
+
+        unique_data = remove_duplicates(cleaned_data)
+
+        run_id = get_current_context()["run_id"]
+
+        processed_object_name = load_to_rustfs(
             "earthquakes",
-            raw_data,
-            run_id
+            unique_data,
+            f"{run_id}/processed",
         )
 
+        # Возвращаем только ссылку, а не весь JSON
+        return processed_object_name
+
+
     @task
-    def extract_task(object_name):
-        return data_extraction(
+    def load_clean_data_to_postgres_task(processed_object_name: str):
+        # берём обработанные данные из RustFS
+        processed_data = data_extraction(
             "earthquakes",
-            object_name
+            processed_object_name
         )
 
-    @task
-    def check_structure_task(data):
-        valid_response = response_structure_check(data)
-
-        if not valid_response:
-            raise ValueError("валидация структуры не пройдена!")
-        return data
-
-    @task
-    def check_values_task(data):
-        valid_response = response_values_check(data)
-        if not valid_response:
-            raise ValueError("проверка диапазонов значений не пройдена!")
-        return data
-
-    @task
-    def clean_nulls_task(data):
-        return remove_nulls(data)
-
-    @task
-    def clean_duplicates_task(data):
-        return remove_duplicates(data)
-
-    @task
-    def load_to_postgres_task(clean_data):
         engine = create_engine(db_conn_string)
-        return load_to_postgres(engine, "earthquakes", clean_data)
 
-#TODO схема дага будет полностью переработана тк через xcom передавался результат выполнения каждой таски
+        try:
+            return load_to_postgres(
+                engine,
+                "earthquakes",
+                processed_data
+            )
+        finally:
+            engine.dispose()
 
-# storages_check(check_bucket, check_db) ->
-# get_api_response_and_load_to_rustfs(fetch_api, upload_raw_to_rustfs) ->
-# make_processed_data(extract, check_structure, check_values, clean_nulls, clean_duplicates, upload_raw_to_rustfs) ->
-# load_clean_data_to_postgre(extract, load_to_postgres)
+
+    storages_check = storages_check_task()
+    raw_object_name = get_api_response_and_load_to_rustfs_task()
+    processed_object_name = make_processed_data_task(raw_object_name)
+    loaded = load_clean_data_to_postgres_task(processed_object_name)
+
+    storages_check >> raw_object_name
