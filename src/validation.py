@@ -17,7 +17,7 @@ client = Minio(
 def data_extraction(
     bucket_name: str,
     object_name: str
-) -> dict:
+) -> dict | list:
     """чтение данных из бакета"""
 
     try:

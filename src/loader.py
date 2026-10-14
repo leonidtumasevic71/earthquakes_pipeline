@@ -78,7 +78,7 @@ def api_check(api_url: str) -> dict:
 
 def load_to_rustfs(
     bucket_name: str,
-    data: dict,
+    data: dict | list,
     run_id: str
 ) -> str:
     """
@@ -138,6 +138,7 @@ def db_access_check(engine: Engine) -> bool:
     except Exception:
         logger.exception("Не удалось подключиться к PostgreSQL")
         return False
+
 
 def check_db_table(engine: Engine, table_name: str) -> bool:
     """Проверяет наличие таблицы в PostgreSQL."""
