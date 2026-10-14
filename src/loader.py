@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from minio import Minio
 from minio.error import S3Error
+from sqlalchemy.engine import Engine
 from sqlalchemy import text, inspect
 from config import rustfs_access_key, rustfs_secret_key
 from tenacity import (
@@ -26,12 +27,22 @@ client = Minio(
 
 
 def bucket_check(bucket_name: str) -> None:
-    """создание rustfs bucket если bucket еще не был созан"""
-    if not client.bucket_exists(bucket_name):
-        client.make_bucket(bucket_name)
-        log.info(f"бакет {bucket_name} был успешно создан")
-    else:
-        log.info(f"бакет: {bucket_name} уже существует")
+    """Создаёт RustFS bucket, если он не существует."""
+
+    try:
+        if not client.bucket_exists(bucket_name):
+            client.make_bucket(bucket_name)
+            logger.info(f"Bucket '{bucket_name}' успешно создан")
+        else:
+            logger.info(f"Bucket '{bucket_name}' уже существует")
+
+    except Exception as e:
+        logger.exception(
+            f"Ошибка при проверке или создании bucket '{bucket_name}'"
+        )
+        raise RuntimeError(
+            f"Не удалось проверить или создать bucket '{bucket_name}'"
+        ) from e
 
 
 @retry(
@@ -113,37 +124,39 @@ def load_to_rustfs(
         )
         raise
 
-import logging
-from sqlalchemy import text, inspect
-from sqlalchemy.engine import Engine
-
-logger = logging.getLogger(__name__)
-
 
 def db_access_check(engine: Engine) -> bool:
-    """Проверяет, что БД доступна."""
+    """Проверяет доступность PostgreSQL."""
+
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        logger.info("БД доступна")
-        return True
-    except Exception as e:
-        logger.error(f"БД недоступна: {e}")
-        return False
 
+        logger.info("PostgreSQL доступен")
+        return True
+
+    except Exception:
+        logger.exception("Не удалось подключиться к PostgreSQL")
+        return False
 
 def check_db_table(engine: Engine, table_name: str) -> bool:
-    """Проверяет наличие таблицы в БД."""
-    try:
-        if inspect(engine).has_table(table_name):
-            logger.info(f"Таблица '{table_name}' существует")
-            return True
+    """Проверяет наличие таблицы в PostgreSQL."""
 
-        logger.error(f"Таблицы '{table_name}' нет в БД")
+    try:
+        table_exists = inspect(engine).has_table(table_name)
+
+    except Exception:
+        logger.exception(
+            f"Ошибка при проверке таблицы '{table_name}'"
+        )
+        raise
+
+    if not table_exists:
+        logger.error(f"Таблица '{table_name}' не существует")
         return False
-    except Exception as e:
-        logger.error(f"Ошибка проверки таблицы '{table_name}': {e}")
-        return False
+
+    logger.info(f"Таблица '{table_name}' существует")
+    return True
 
 
 def load_to_postgres(engine, table_name: str, data) -> None:
