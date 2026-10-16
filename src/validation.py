@@ -18,7 +18,7 @@ def data_extraction(
     bucket_name: str,
     object_name: str
 ) -> dict | list:
-    """чтение данных из бакета"""
+    """чтение данных из rustfs бакета"""
 
     try:
         response = client.get_object(
