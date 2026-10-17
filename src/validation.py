@@ -1,5 +1,6 @@
 import json
 import logging as log
+import math
 from minio import Minio
 from config import rustfs_access_key, rustfs_secret_key
 
@@ -49,6 +50,26 @@ def data_extraction(
         raise
 
 
+def response_root_check(data: dict) -> bool:
+    """Проверяет корневую структуру FeatureCollection."""
+
+    return (
+        isinstance(data, dict)
+        and data.get("type") == "FeatureCollection"
+        and isinstance(data.get("features"), list)
+    )
+
+
+def is_number(value) -> bool:
+    """Число без bool, NaN и бесконечности."""
+
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and (not isinstance(value, float) or math.isfinite(value))
+    )
+
+
 def response_structure_check(data: dict) -> bool:
     """Проверка структуры API ответа и типов данных."""
 
@@ -85,25 +106,25 @@ def response_structure_check(data: dict) -> bool:
         geometry = feature["geometry"]
 
         # Проверка properties
-        if not isinstance(properties.get("mag"), (int, float)):
+        if not is_number(properties.get("mag")):
             return False
 
-        if not isinstance(properties.get("time"), (int, float)):
+        if not is_number(properties.get("time")):
             return False
 
-        if not isinstance(properties.get("updated"), (int, float)):
+        if not is_number(properties.get("updated")):
             return False
 
-        if properties.get("nst") is not None and not isinstance(properties["nst"], (int, float)):
+        if properties.get("nst") is not None and not is_number(properties["nst"]):
             return False
 
-        if properties.get("rms") is not None and not isinstance(properties["rms"], (int, float)):
+        if properties.get("rms") is not None and not is_number(properties["rms"]):
             return False
 
-        if properties.get("gap") is not None and not isinstance(properties["gap"], (int, float)):
+        if properties.get("gap") is not None and not is_number(properties["gap"]):
             return False
 
-        if properties.get("dmin") is not None and not isinstance(properties["dmin"], (int, float)):
+        if properties.get("dmin") is not None and not is_number(properties["dmin"]):
             return False
 
         # Проверка geometry
@@ -118,13 +139,13 @@ def response_structure_check(data: dict) -> bool:
         if len(coordinates) != 3:
             return False
 
-        if not all(isinstance(value, (int, float)) for value in coordinates):
+        if not all(is_number(value) for value in coordinates):
             return False
 
     return True
 
 
-def response_values_check(data: dict) -> bool:
+def response_values_check(data: dict, log_success: bool = True) -> bool:
     """проверяет диапазоны значений"""
 
     for feature in data["features"]:
@@ -153,28 +174,28 @@ def response_values_check(data: dict) -> bool:
             )
             return False
 
-        if properties["nst"] is not None and properties["nst"] < 0:
+        if properties.get("nst") is not None and properties["nst"] < 0:
             log.error(
                 f"id={feature_id}: "
                 f"nst={properties['nst']} < 0"
             )
             return False
 
-        if properties["rms"] is not None and properties["rms"] < 0:
+        if properties.get("rms") is not None and properties["rms"] < 0:
             log.error(
                 f"id={feature_id}: "
                 f"rms={properties['rms']} < 0"
             )
             return False
 
-        if properties["gap"] is not None and properties["gap"] < 0:
+        if properties.get("gap") is not None and properties["gap"] < 0:
             log.error(
                 f"id={feature_id}: "
                 f"gap={properties['gap']} < 0"
             )
             return False
 
-        if properties["dmin"] is not None and properties["dmin"] < 0:
+        if properties.get("dmin") is not None and properties["dmin"] < 0:
             log.error(
                 f"id={feature_id}: "
                 f"dmin={properties['dmin']} < 0"
@@ -206,12 +227,50 @@ def response_values_check(data: dict) -> bool:
             )
             return False
 
-    log.info(
-        f"Проверка диапазонов успешно пройдена. "
-        f"Проверено записей: {len(data['features'])}"
-    )
+    if log_success:
+        log.info(
+            f"Проверка диапазонов успешно пройдена. "
+            f"Проверено записей: {len(data['features'])}"
+        )
 
     return True
+
+
+def filter_valid_features(data: dict) -> list:
+    """Возвращает только записи, прошедшие структурную проверку и проверку значений."""
+
+    if not response_root_check(data):
+        raise ValueError("Ответ не является корректным FeatureCollection")
+
+    valid_features = []
+
+    for feature in data["features"]:
+        single_feature_data = {
+            "type": "FeatureCollection",
+            "features": [feature],
+        }
+
+        structure_is_valid = response_structure_check(single_feature_data)
+        values_are_valid = (
+            structure_is_valid
+            and response_values_check(single_feature_data, log_success=False)
+        )
+
+        if structure_is_valid and values_are_valid:
+            valid_features.append(feature)
+        else:
+            feature_id = feature.get("id") if isinstance(feature, dict) else None
+            logger.warning(
+                "Запись пропущена (id=%s): некорректная структура или значения",
+                feature_id,
+            )
+
+    logger.info(
+        "Фильтрация завершена: принято %s из %s записей",
+        len(valid_features),
+        len(data["features"]),
+    )
+    return valid_features
 
 
 def remove_nulls(data: dict) -> list:
