@@ -53,6 +53,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pipeline-db:
+        condition: service_healthy
 
   # --- Postgres для метаданных Airflow (не трогаем) ---
   postgres:
@@ -79,6 +81,7 @@ services:
       POSTGRES_DB: ${PIPELINE_DB_NAME}
 
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+      GRAFANA_DB_USER: ${GRAFANA_DB_USER:-grafana}
 
     ports:
       - "${PIPELINE_DB_PORT}:5432"
