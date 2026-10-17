@@ -54,7 +54,7 @@ services:
 
   # --- Postgres для метаданных Airflow (не трогаем) ---
   postgres:
-    image: postgres:13
+    image: postgres:17
     environment:
       POSTGRES_USER: ${AIRFLOW_DB_USER}
       POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
@@ -69,7 +69,7 @@ services:
 
   # --- Postgres для данных пайплайна (НОВЫЙ) ---
   pipeline-db:
-    image: postgres:13
+    image: postgres:17
 
     environment:
       POSTGRES_USER: ${PIPELINE_DB_USER}
