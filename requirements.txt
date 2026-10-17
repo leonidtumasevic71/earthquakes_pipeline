@@ -6,3 +6,5 @@ minio
 sqlalchemy
 psycopg2-binary
 tenacity
+python-dotenv
+apache-airflow-providers-fab
