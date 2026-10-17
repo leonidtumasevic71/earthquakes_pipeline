@@ -13,10 +13,9 @@ from src.loader import (
 )
 from src.validation import (
     data_extraction,
-    response_structure_check,
+    filter_valid_features,
     remove_duplicates,
     remove_nulls,
-    response_values_check,
 )
 
 default_args = {
@@ -43,7 +42,6 @@ with DAG(
     tags=["earthquakes"],
 ) as dag:
 
-
     @task
     def storages_check_task():
         bucket_check("earthquakes")
@@ -64,7 +62,6 @@ with DAG(
         finally:
             engine.dispose()
 
-
     @task
     def get_api_response_and_load_to_rustfs_task():
         response = api_check(api_url)
@@ -78,18 +75,18 @@ with DAG(
 
     @task
     def make_processed_data_task(raw_object_name: str) -> str:
-        """Читает RAW, валидирует, очищает и сохраняет обработанные данные."""
+        """Читает RAW, валидирует, очищает и сохраняет обработанные данные"""
 
         data = data_extraction("earthquakes", raw_object_name)
 
-        if not response_structure_check(data):
-            raise ValueError("Валидация структуры не пройдена")
+        # кривой корневой ответ прерывает таску
+        # а некорректные отдельные записи пропускаются
+        valid_features = filter_valid_features(data)
+        if data["features"] and not valid_features:
+            raise ValueError("Все записи не прошли валидацию, пустой набор не загружается")
 
-        if not response_values_check(data):
-            raise ValueError("Проверка значений не пройдена")
-
-        cleaned_data = remove_nulls(data)
-
+        # Сохраняем существующие этапы очистки и удаления дубликатов
+        cleaned_data = remove_nulls({"features": valid_features})
         unique_data = remove_duplicates(cleaned_data)
 
         run_id = get_current_context()["run_id"]
@@ -100,7 +97,6 @@ with DAG(
             f"{run_id}/processed",
         )
 
-        # Возвращаем только ссылку, а не весь JSON
         return processed_object_name
 
 
