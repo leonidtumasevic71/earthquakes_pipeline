@@ -46,10 +46,19 @@ services:
   grafana:
     image: grafana/grafana:13.2.3
     restart: unless-stopped
+
     ports:
       - "127.0.0.1:3000:3000"
+
+    environment:
+      GRAFANA_DB_USER: ${GRAFANA_DB_USER}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
+      PIPELINE_DB_NAME: ${PIPELINE_DB_NAME}
+
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+
     depends_on:
       postgres:
         condition: service_healthy

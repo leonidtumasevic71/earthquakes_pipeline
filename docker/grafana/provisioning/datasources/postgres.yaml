@@ -1,0 +1,21 @@
+apiVersion: 1
+
+datasources:
+  - name: Earthquakes PostgreSQL
+    uid: earthquakes-postgres
+    type: postgres
+    access: proxy
+    url: pipeline-db:5432
+    user: $GRAFANA_DB_USER
+
+    isDefault: true
+    editable: false
+
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
+
+    jsonData:
+      database: $PIPELINE_DB_NAME
+      sslmode: disable
+      postgresVersion: 1700
+      timescaledb: false
