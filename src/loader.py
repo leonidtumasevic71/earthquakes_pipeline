@@ -57,12 +57,15 @@ def bucket_check(bucket_name: str) -> None:
         )
     ),
     stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=1, max=30),
+    wait=wait_exponential(multiplier=1.25, min=1, max=30),
 )
 def api_check(api_url: str) -> dict:
     """Проверка доступности API. Retry только для timeout, connection errors и HTTP 5xx."""
 
     response = rq.get(api_url, timeout=5)
+
+    if response.status_code == 204:
+        log.error(f"отсутствие тела ответа")
 
     if response.ok:
         log.info(f"API доступен, status_code: {response.status_code}")
