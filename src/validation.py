@@ -1,11 +1,11 @@
 import json
-import logging as log
+import logging
 import math
 from minio import Minio
 from config import rustfs_access_key, rustfs_secret_key
 
 
-logger = log.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 client = Minio(
     "rustfs:9000",
@@ -36,7 +36,7 @@ def data_extraction(
             response.close()
             response.release_conn()
 
-        logger.info(
+        logging.info(
             f"файл {object_name} успешно прочитан "
             f"из бакета {bucket_name}"
         )
@@ -44,14 +44,14 @@ def data_extraction(
         return data
 
     except Exception as e:
-        log.error(
+        logging.error(
             f"ошибка чтения {object_name}: {e}"
         )
         raise
 
 
 def response_root_check(data: dict) -> bool:
-    """Проверяет корневую структуру FeatureCollection."""
+    """Проверяет корневую структуру FeatureCollection"""
 
     return (
         isinstance(data, dict)
@@ -61,7 +61,7 @@ def response_root_check(data: dict) -> bool:
 
 
 def is_number(value) -> bool:
-    """Число без bool, NaN и бесконечности."""
+    """Число без bool, NaN и бесконечности"""
 
     return (
         isinstance(value, (int, float))
@@ -71,7 +71,7 @@ def is_number(value) -> bool:
 
 
 def response_structure_check(data: dict) -> bool:
-    """Проверка структуры API ответа и типов данных."""
+    """Проверка структуры API ответа и типов данных"""
 
     if not isinstance(data, dict):
         return False
@@ -145,7 +145,7 @@ def response_structure_check(data: dict) -> bool:
     return True
 
 
-def response_values_check(data: dict, log_success: bool = True) -> bool:
+def response_values_check(data: dict, logging_success: bool = True) -> bool:
     """проверяет диапазоны значений"""
 
     for feature in data["features"]:
@@ -154,49 +154,49 @@ def response_values_check(data: dict, log_success: bool = True) -> bool:
         coordinates = feature["geometry"]["coordinates"]
 
         if properties["mag"] < -10 or properties["mag"] > 15:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"mag={properties['mag']} вне диапазона [-10, 15]"
             )
             return False
 
         if properties["time"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"time={properties['time']} < 0"
             )
             return False
 
         if properties["updated"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"updated={properties['updated']} < 0"
             )
             return False
 
         if properties.get("nst") is not None and properties["nst"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"nst={properties['nst']} < 0"
             )
             return False
 
         if properties.get("rms") is not None and properties["rms"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"rms={properties['rms']} < 0"
             )
             return False
 
         if properties.get("gap") is not None and properties["gap"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"gap={properties['gap']} < 0"
             )
             return False
 
         if properties.get("dmin") is not None and properties["dmin"] < 0:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"dmin={properties['dmin']} < 0"
             )
@@ -207,29 +207,29 @@ def response_values_check(data: dict, log_success: bool = True) -> bool:
         depth = coordinates[2]
 
         if longitude < -180 or longitude > 180:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"longitude={longitude} вне диапазона [-180, 180]"
             )
             return False
 
         if latitude < -90 or latitude > 90:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"latitude={latitude} вне диапазона [-90, 90]"
             )
             return False
 
         if depth < -10:
-            log.error(
+            logging.error(
                 f"id={feature_id}: "
                 f"depth={depth} < -10"
             )
             return False
 
-    if log_success:
-        log.info(
-            f"Проверка диапазонов успешно пройдена. "
+    if logging_success:
+        logging.info(
+            f"Проверка диапазонов успешно пройдена"
             f"Проверено записей: {len(data['features'])}"
         )
 
@@ -237,7 +237,7 @@ def response_values_check(data: dict, log_success: bool = True) -> bool:
 
 
 def filter_valid_features(data: dict) -> list:
-    """Возвращает только записи, прошедшие структурную проверку и проверку значений."""
+    """Возвращает только записи, прошедшие структурную проверку и проверку значений"""
 
     if not response_root_check(data):
         raise ValueError("Ответ не является корректным FeatureCollection")
@@ -253,19 +253,19 @@ def filter_valid_features(data: dict) -> list:
         structure_is_valid = response_structure_check(single_feature_data)
         values_are_valid = (
             structure_is_valid
-            and response_values_check(single_feature_data, log_success=False)
+            and response_values_check(single_feature_data, logging_success=False)
         )
 
         if structure_is_valid and values_are_valid:
             valid_features.append(feature)
         else:
             feature_id = feature.get("id") if isinstance(feature, dict) else None
-            logger.warning(
+            logging.warning(
                 "Запись пропущена (id=%s): некорректная структура или значения",
                 feature_id,
             )
 
-    logger.info(
+    logging.info(
         "Фильтрация завершена: принято %s из %s записей",
         len(valid_features),
         len(data["features"]),
@@ -274,7 +274,7 @@ def filter_valid_features(data: dict) -> list:
 
 
 def remove_nulls(data: dict) -> list:
-    """Удаляет только записи с критически отсутствующими полями."""
+    """Удаляет только записи с критически отсутствующими полями"""
 
     cleaned_features = []
 

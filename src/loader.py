@@ -1,5 +1,5 @@
 import json
-import logging as log
+import logging
 import requests as rq
 from datetime import datetime, timezone
 from io import BytesIO
@@ -16,7 +16,7 @@ from tenacity import (
 )
 
 
-logger = log.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 client = Minio(
     "rustfs:9000",
@@ -65,17 +65,17 @@ def api_check(api_url: str) -> dict:
     response = rq.get(api_url, timeout=5)
 
     if response.status_code == 204:
-        log.error(f"отсутствие тела ответа")
+        logging.error(f"отсутствие тела ответа")
 
     if response.ok:
-        log.info(f"API доступен, status_code: {response.status_code}")
+        logging.info(f"API доступен, status_code: {response.status_code}")
         return response.json()
 
     if 400 <= response.status_code < 500:
-        log.error(f"Клиентская ошибка: {response.status_code}")
+        logging.error(f"Клиентская ошибка: {response.status_code}")
         response.raise_for_status()
 
-    log.error(f"Ошибка сервера API, status_code: {response.status_code}")
+    logging.error(f"Ошибка сервера API, status_code: {response.status_code}")
     response.raise_for_status()
 
 
@@ -107,7 +107,7 @@ def load_to_rustfs(
             content_type="application/json",
         )
 
-        log.info(
+        logging.info(
             f"файл {object_name}, успешно загружен "
             f"в бакет: {bucket_name}"
         )
@@ -115,14 +115,14 @@ def load_to_rustfs(
         return object_name
 
     except S3Error as e:
-        log.error(
+        logging.error(
             f"ошибка rustfs при загрузке объекта: "
             f"{object_name}: {e}"
         )
         raise
 
     except Exception as e:
-        log.error(
+        logging.error(
             f"неизвестная ошибка при загрузке: {e}"
         )
         raise
