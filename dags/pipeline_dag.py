@@ -23,7 +23,7 @@ default_args = {
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 2,
+    "retries": 1,
     "retry_delay": timedelta(minutes=1),
 }
 
@@ -31,7 +31,7 @@ with DAG(
     dag_id="pipeline_dag",
     default_args=default_args,
     description="Earthquakes data pipeline",
-    schedule=timedelta(minutes=30),
+    schedule=timedelta(minutes=20),
         start_date=pendulum.datetime(
             2026,
             9,

@@ -27,7 +27,7 @@ client = Minio(
 
 
 def bucket_check(bucket_name: str) -> None:
-    """Создаёт RustFS bucket, если он не существует."""
+    """Создаёт RustFS bucket, если он ещё не создан"""
 
     try:
         if not client.bucket_exists(bucket_name):
