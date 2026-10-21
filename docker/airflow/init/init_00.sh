@@ -59,8 +59,12 @@ case "$user_state" in
         ;;
 
     admin)
-        echo "Airflow admin already exists: $AIRFLOW_ADMIN_USER"
-        ;;
+    echo "Airflow admin already exists: $AIRFLOW_ADMIN_USER"
+
+    airflow users reset-password \
+        --username "$AIRFLOW_ADMIN_USER" \
+        --password "$AIRFLOW_ADMIN_PASSWORD"
+    ;;
 
     *)
         echo "ERROR: Unexpected user state: $user_state" >&2
