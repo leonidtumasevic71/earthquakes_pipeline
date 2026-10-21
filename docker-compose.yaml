@@ -26,7 +26,7 @@ x-airflow-common: &airflow-common
 
   volumes:
     - ./dags:/opt/airflow/dags
-    - ./logs:/opt/airflow/logs
+    - airflow_logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./config:/opt/airflow/config
     - ./src:/opt/airflow/src
@@ -51,6 +51,9 @@ services:
       - "127.0.0.1:3000:3000"
 
     environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_UI_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_UI_PASSWORD}
+
       GRAFANA_DB_USER: ${GRAFANA_DB_USER}
       GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD}
       PIPELINE_DB_NAME: ${PIPELINE_DB_NAME}
@@ -120,7 +123,14 @@ services:
     command:
       - -c
       - |
+        set -e
         airflow db migrate
+        /bin/bash /opt/airflow/init/init_00.sh
+    environment:
+      <<: *airflow-common-env
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
     restart: "no"
 
   airflow-api-server:
@@ -220,3 +230,4 @@ volumes:
   pipeline-db-volume:
   rustfs_data:
   grafana_data:
+  airflow_logs:
