@@ -155,6 +155,8 @@ services:
   airflow-scheduler:
     <<: *airflow-common
     depends_on:
+      airflow-api-server:
+        condition: service_healthy
       rustfs:
         condition: service_healthy
       postgres:
